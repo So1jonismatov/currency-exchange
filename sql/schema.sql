@@ -1,56 +1,63 @@
-create schema if not exists bronze;
-create schema if not exists silver;
-create schema if not exists gold;
+CREATE SCHEMA IF NOT EXISTS bronze;
+CREATE SCHEMA IF NOT EXISTS silver;
+CREATE SCHEMA IF NOT EXISTS gold;
 
-
--- bronze layer
-
-create table if not exists bronze.raw_rates(
-    id Serial primary key,
-    fetch_date Date not null,
-    base_currency Text not null default 'USD',
-    raw_json Jsonb not null,
-    inserted_at Timestamp with time zone default CURRENT_TIMESTAMP
+-- BRONZE LAYER
+CREATE TABLE IF NOT EXISTS bronze.raw_rates (
+    id SERIAL PRIMARY KEY,
+    fetch_date DATE NOT NULL,
+    base_currency TEXT NOT NULL DEFAULT 'USD',
+    raw_json JSONB NOT NULL,
+    inserted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-
--- silver layer
-
-create table if not exists silver.cleaned_rates(
-    date Date not null,
-    base_currency Text not null,
-    target_currency Text not null,
-    exchange_rate Numeric(18, 6) not null,
-    load_timestamp Timestamp with time zone default CURRENT_TIMESTAMP,
-
-    primary key (date, base_currency, target_currency)
+CREATE TABLE IF NOT EXISTS bronze.raw_currencies (
+    id SERIAL PRIMARY KEY,
+    fetch_date DATE NOT NULL,
+    raw_json JSONB NOT NULL,
+    inserted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- gold layer
-
-create table if not exists gold.dim_currencies (
-    currency_code Text primary key,
-    currency_name Text,
-    symbol Text,
-    country Text
+-- SILVER LAYER
+CREATE TABLE IF NOT EXISTS silver.cleaned_rates (
+    date DATE NOT NULL,
+    base_currency TEXT NOT NULL,
+    target_currency TEXT NOT NULL,
+    exchange_rate NUMERIC(18, 6) NOT NULL,
+    load_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (date, base_currency, target_currency)
 );
 
-create table if not exists gold.dim_dates(
-    date Date primary key,
-    year Int,
-    month Int,
-    day Int,
-    day_name Text,
-    is_weekday Boolean
+CREATE TABLE IF NOT EXISTS silver.cleaned_currencies (
+    currency_code TEXT PRIMARY KEY,
+    currency_name TEXT,
+    symbol TEXT,
+    load_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-create table if not exists gold.fact_aggregated_rates(
-    date Date references gold.dim_dates(date),
-    target_currency Text references gold.dim_currencies(currency_code),
-    exchange_rate Numeric(18,6),
-    rate_change_pct Numeric(10,4),
-    seven_day_avg Numeric(18,6),
-    load_timestamp Timestamp with time zone default CURRENT_TIMESTAMP,
+-- GOLD LAYER
+CREATE TABLE IF NOT EXISTS gold.dim_currencies (
+    currency_code CHAR(3) PRIMARY KEY,
+    currency_name VARCHAR(100),
+    symbol VARCHAR(10),
+    country VARCHAR(100)
+);
 
-    primary key (date, target_currency)
+CREATE TABLE IF NOT EXISTS gold.dim_dates (
+    date DATE PRIMARY KEY,
+    year INT,
+    month INT,
+    day INT,
+    day_name VARCHAR(20),
+    is_weekday BOOLEAN
+);
+
+CREATE TABLE IF NOT EXISTS gold.aggregated_rates (
+    date DATE REFERENCES gold.dim_dates(date),
+    target_currency CHAR(3) REFERENCES gold.dim_currencies(currency_code),
+    exchange_rate NUMERIC(18, 6),
+    rate_change_pct NUMERIC(10, 4),
+    seven_day_avg NUMERIC(18, 6),
+    load_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (date, target_currency)
 );

@@ -7,34 +7,21 @@ import schedule
 from load_bronze import load_to_bronze
 from transform_gold import transform_silver_to_gold
 from transform_silver import transform_bronze_to_silver
-from utils import get_config, get_db_connection, logger
-
-
-def get_latest_date_in_db():
-    """Fetches the most recent date processed in the Silver layer."""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT MAX(date) FROM silver.cleaned_rates")
-        row = cur.fetchone()
-        result = row[0] if row else None
-        cur.close()
-        conn.close()
-        return result
-    except Exception as e:
-        logger.error(f"Error fetching latest date from DB: {e}")
-        return None
+from utils import get_config, get_latest_date_in_db, logger, run_sql_file
 
 
 def run_pipeline(start_date=None, end_date=None):
     """
-    Executes the full ETL pipeline.
-    If dates are not provided, it performs an incremental load.
+    Orchestrates the full ETL pipeline execution.
+    1. Bronze: Extract RAW data from API to DB.
+    2. Silver: Transform RAW JSON to structured relational data.
+    3. Gold: Populate analytical fact and dimension tables.
     """
     logger.info("--- Starting Pipeline Execution ---")
     config = get_config()
 
     try:
+        run_sql_file("schema.sql")
         if not start_date:
             last_date = get_latest_date_in_db()
             if not last_date:
@@ -59,9 +46,7 @@ def run_pipeline(start_date=None, end_date=None):
         load_to_bronze(
             config["BASE_CURRENCY"], config["TARGET_CURRENCIES"], start_date, end_date
         )
-
         transform_bronze_to_silver()
-
         transform_silver_to_gold()
 
         logger.info("--- Pipeline Completed Successfully ---")
@@ -71,6 +56,9 @@ def run_pipeline(start_date=None, end_date=None):
 
 
 def start_scheduler():
+    """
+    Initializes a persistent background loop that runs the pipeline daily.
+    """
     config = get_config()
     target_time = config["SCHEDULE_TIME"]
 

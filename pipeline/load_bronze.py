@@ -1,62 +1,50 @@
 import json
-
-from extract import fetch_rates
+from datetime import datetime
+from extract import fetch_rates, fetch_currencies
 from utils import get_config, get_db_connection, logger
 
-
 def load_to_bronze(base, targets, date, end_date=None):
-    """
-    Extracts data from API and loads it as-is into the bronze layer.
-    """
     logger.info(f"Starting Bronze load for {date} (end_date: {end_date})...")
 
+    rates_data = fetch_rates(base, targets, date, end_date)
+    currencies_data = fetch_currencies()
+
+    conn = get_db_connection()
     try:
-        data = fetch_rates(base, targets, date, end_date)
+        cur = conn.cursor()
 
-        if not data:
-            logger.warning("No data extracted. Skipping load.")
-            return
-
-        conn = get_db_connection()
-        try:
-            cur = conn.cursor()
-
-            query = """
+        # 1. Load Rates JSON
+        if rates_data:
+            query_rates = """
                 INSERT INTO bronze.raw_rates (fetch_date, base_currency, raw_json)
                 VALUES (%s, %s, %s)
             """
+            ref_date = rates_data[0].get("date", date) if isinstance(rates_data, list) else date
+            if ref_date == "latest":
+                ref_date = datetime.now().strftime("%Y-%m-%d")
 
-            reference_date = (
-                data.get("date", date)
-                if date != "latest"
-                else data.get("date", "now()")
-            )
+            cur.execute(query_rates, (ref_date, base, json.dumps(rates_data)))
+            logger.info(f"Successfully loaded records into bronze.raw_rates for {ref_date}")
 
-            cur.execute(query, (reference_date, base, json.dumps(data)))
+        # 2. Load Currencies JSON
+        if currencies_data:
+            query_curr = """
+                INSERT INTO bronze.raw_currencies (fetch_date, raw_json)
+                VALUES (%s, %s)
+            """
+            cur.execute(query_curr, (datetime.now().strftime("%Y-%m-%d"), json.dumps(currencies_data)))
+            logger.info("Successfully loaded records into bronze.raw_currencies")
 
-            conn.commit()
-            logger.info(
-                f"Successfully loaded records into bronze.raw_rates for {reference_date}"
-            )
-
-            cur.close()
-        except Exception as e:
-            logger.error(f"Database Error during Bronze load: {e}")
-            conn.rollback()
-            raise
-        finally:
-            if conn:
-                conn.close()
-
+        conn.commit()
     except Exception as e:
-        logger.error(f"Failed to complete Bronze load: {e}")
+        logger.error(f"Database Error during Bronze load: {e}")
+        conn.rollback()
         raise
-
+    finally:
+        if conn:
+            cur.close()
+            conn.close()
 
 if __name__ == "__main__":
     config = get_config()
-    BASE = config["BASE_CURRENCY"]
-    TARGETS = config["TARGET_CURRENCIES"]
-
-    # Test loading a specific date
-    load_to_bronze(BASE, TARGETS, "2024-01-15")
+    load_to_bronze(config["BASE_CURRENCY"], config["TARGET_CURRENCIES"], "2024-01-15")
