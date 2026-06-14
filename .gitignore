@@ -1,3 +1,7 @@
 .idea
 .venv
+.pytest_cache
+pipeline/__pycache__/
+test/__pycache__/
+.env.example
 .env
