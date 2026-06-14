@@ -35,14 +35,18 @@ def get_db_connection():
         raise
 
 
-
 def get_config():
     """Returns configuration from environment variables."""
     return {
         "BASE_CURRENCY": os.getenv("BASE_CURRENCY", "USD"),
-        "TARGET_CURRENCIES": os.getenv("TARGET_CURRENCIES", "UZS,RUB,EUR,GBP").split(","),
-        "SCHEDULE_TIME": os.getenv("SCHEDULE_TIME", "03:00"), # 03:00 UTC = 08:00 AM Tashkent
+        "TARGET_CURRENCIES": os.getenv("TARGET_CURRENCIES", "UZS,RUB,EUR,GBP").split(
+            ","
+        ),
+        "SCHEDULE_TIME": os.getenv(
+            "SCHEDULE_TIME", "03:00"
+        ),  # 03:00 UTC = 08:00 AM Tashkent
     }
+
 
 def get_latest_date_in_db():
     """

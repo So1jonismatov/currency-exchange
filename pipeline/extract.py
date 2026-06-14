@@ -1,6 +1,12 @@
 import requests
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 from utils import logger
+
 
 @retry(
     stop=stop_after_attempt(3),
@@ -19,7 +25,9 @@ def fetch_rates(base_currency, target_currencies, start_date, end_date=None):
         if start_date != "latest":
             params["date"] = start_date
     try:
-        logger.info(f"Fetching rates: {base_currency} -> {quotes_str} for {start_date} to {end_date or start_date}")
+        logger.info(
+            f"Fetching rates: {base_currency} -> {quotes_str} for {start_date} to {end_date or start_date}"
+        )
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         return response.json() or None
@@ -31,6 +39,7 @@ def fetch_rates(base_currency, target_currencies, start_date, end_date=None):
     except Exception as e:
         logger.error(f"API Extraction Error: {e}")
         raise
+
 
 @retry(
     stop=stop_after_attempt(3),

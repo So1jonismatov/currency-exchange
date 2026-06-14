@@ -1,13 +1,13 @@
 from psycopg2.extras import execute_values
 from utils import get_db_connection, logger
 
+
 def transform_bronze_to_silver():
     logger.info("Starting Silver transformation...")
     conn = get_db_connection()
     try:
         cur = conn.cursor()
 
-        # --- 1. Transform Rates ---
         cur.execute("SELECT raw_json, base_currency FROM bronze.raw_rates")
         rows = cur.fetchall()
         cleaned_rates = []
@@ -29,19 +29,24 @@ def transform_bronze_to_silver():
                 ON CONFLICT (date, base_currency, target_currency) DO NOTHING;
             """
             execute_values(cur, insert_rates_query, cleaned_rates)
-            logger.info(f"Silver Transformation: Processed {len(cleaned_rates)} rate records.")
+            logger.info(
+                f"Silver Transformation: Processed {len(cleaned_rates)} rate records."
+            )
 
-        # --- 2. Transform Currencies ---
         cur.execute("SELECT raw_json FROM bronze.raw_currencies")
         curr_rows = cur.fetchall()
-        cleaned_currencies = {} # Using a dict to deduplicate
+        cleaned_currencies = {}
 
         for (raw_payload,) in curr_rows:
             if isinstance(raw_payload, list):
                 for item in raw_payload:
                     code = item.get("iso_code")
                     if code:
-                        cleaned_currencies[code] = (code, item.get("name", "Unknown"), item.get("symbol"))
+                        cleaned_currencies[code] = (
+                            code,
+                            item.get("name", "Unknown"),
+                            item.get("symbol"),
+                        )
             elif isinstance(raw_payload, dict):
                 for code, name in raw_payload.items():
                     cleaned_currencies[code] = (code, name, None)
@@ -55,7 +60,9 @@ def transform_bronze_to_silver():
                     symbol = EXCLUDED.symbol;
             """
             execute_values(cur, insert_curr_query, list(cleaned_currencies.values()))
-            logger.info(f"Silver Transformation: Processed {len(cleaned_currencies)} currency records.")
+            logger.info(
+                f"Silver Transformation: Processed {len(cleaned_currencies)} currency records."
+            )
 
         conn.commit()
     except Exception as e:
@@ -66,6 +73,7 @@ def transform_bronze_to_silver():
         if conn:
             cur.close()
             conn.close()
+
 
 if __name__ == "__main__":
     transform_bronze_to_silver()

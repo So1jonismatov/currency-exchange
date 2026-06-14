@@ -9,6 +9,7 @@ WITH metrics AS (
         AVG(exchange_rate) OVER (PARTITION BY target_currency ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS seven_day_avg
     FROM silver.cleaned_rates
 )
+
 SELECT date, target_currency, exchange_rate, rate_change_pct, seven_day_avg
 FROM metrics
 ON CONFLICT (date, target_currency)
